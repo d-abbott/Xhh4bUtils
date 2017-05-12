@@ -32,6 +32,12 @@ def smoothfit(histo, fitFunction = "Dijet", fitRange = (900, 3000), outrange_sta
         func = R.TF1(fitName, fitChoice, fitRange[0], fitRange[1], npar)
         func.SetParameters(-5, 10, -5)
 
+    elif fitFunction == "Dijet4Param":
+        npar = 4
+        fitChoice = Dijet4ParamFunc
+        func = R.TF1(fitName, fitChoice, fitRange[0], fitRange[1], npar)
+        func.SetParameters(-1, 10, -4, 0.01)
+
     elif fitFunction == "MJ2":
         npar = 3
         fitChoice = MJ2Func
@@ -226,7 +232,7 @@ def smoothFuncCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000),  min
 
     colorlist = [R.kBlue, R.kGreen, R.kOrange, R.kMagenta, R.kCyan, R.kPink, (R.kAzure+1), R.kGreen+2, R.kOrange+5]
 
-    funclist = ["Dijet","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8"]
+    funclist = ["Dijet","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8","Dijet4Param"]
 
     funclist_pass = {}    
 
@@ -506,6 +512,16 @@ def smoothFuncRangeCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000),
             print ("MaxRange=",maxRange, "Integral(",maxRange,",3000)=", results[maxRange]["nom"].Integral(float(maxRange), 3000),
                    "nominal Integral(",maxRange,",3000)=", results["3000"]["nom"].Integral(float(maxRange), 3000) )
 
+    #need to set nom if it fails the fit!
+    if fitPairs_pass[strNom] == False:
+        print "looks like the strNom failed... looking for a new candidate"
+        for key in fitPairs_pass:
+            print "trying new range: " + str(key)
+            if fitPairs_pass[key] == True:
+                print "setting nom because pass status of " +str(key) + " is " + str(fitPairs_pass[key])
+                strNom = key
+                break
+                   
     histo_up = results_hist[strNom].Clone(histo.GetName() + "_" + namestr + "_up")
     histo_up.SetDirectory(0)
     histo_dw = results_hist[strNom].Clone(histo.GetName() + "_" + namestr + "_dw")
@@ -878,6 +894,10 @@ def MJ8Func(x, par):
     z = x[0] / 13000.0
     return np.exp( par[0] ) * (1.0 / z**2) * np.power((1.0 - z), par[1] - par[2]*np.log(z))
 
+def Dijet4ParamFunc(x, par):
+    z = x[0] / 13000.0
+    return np.exp(par[0] + par[1]* np.log((1.0 - z)) + par[2]* np.log(z) ) * np.power(z, par[3]*np.log(z))
+ 
 def GaussExp(x, par):
     z = x[0] / 3000.
     norm = par[0]

@@ -34,6 +34,12 @@ def smoothfit(histo, fitFunction = "Exp", fitRange = (900, 3000), makePlots = Fa
         if len(initpar) == 3:
             func.SetParameters(initpar[0], initpar[1], initpar[2])
 
+    elif fitFunction == "Dijet4Param":
+        npar = 4
+        fitChoice = Dijet4ParamFunc
+        func = R.TF1(fitName, fitChoice, fitRange[0], fitRange[1], npar)
+        func.SetParameters(-1, 10, -4, 0.01)
+            
     elif fitFunction == "MJ2":
         npar = 3
         fitChoice = MJ2Func
@@ -264,7 +270,7 @@ def smoothFuncCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000), make
     results_hist = {}
     results_hist_ud = {}
 
-    for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8"]:
+    for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8","Dijet4Param"]:
         results[theFunc] = smoothfit(h_clone, fitFunction = theFunc, fitRange = fitRange, makePlots = False, verbose = verbose, outfileName = theFunc+"_"+outfileName)
         results_hist[theFunc] = MakeSmoothHisto(h_clone, results[theFunc]["nom"])
 
@@ -288,7 +294,7 @@ def smoothFuncCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000), make
     for ibin in range(1, histo.GetNbinsX()+1):
         deltas = []
         deltas_super = []
-        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8"]:
+        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8","Dijet4Param"]:
             deltas.append( np.abs( results_hist[fitFunction].GetBinContent(ibin) - results_hist[theFunc].GetBinContent(ibin) ) )
 
             for ivarh in results_hist_ud[theFunc]:
@@ -322,7 +328,7 @@ def smoothFuncCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000), make
         icol = 0
         ivar0 = True
         err_hist_ratio = None
-        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8"]:
+        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8","Dijet4Param"]:
 
             if theFunc==fitFunction:
                 err_hist = MakeSmoothHisto(histo, results[theFunc]["nom"])
@@ -391,7 +397,7 @@ def smoothFuncCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000), make
 
 
         delta_ratio_super = {}
-        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8"]:
+        for theFunc in ["Dijet","Exp","MJ2","MJ3","MJ4","MJ5","MJ6","MJ7","MJ8","Dijet4Param"]:
             ## func_ratio[theFunc] = lambda x: (results[theFunc]["nom"].Eval(x[0]) / results["Exp"]["nom"].Eval(x[0]))
             ## f_ratio[theFunc] = R.TF1(theFunc+"_ratio_"+namestr, func_ratio[theFunc], fitRange[0], 3000, 0)
             ## f_ratio[theFunc].SetLineColor( colorlist[icol] )
@@ -650,7 +656,32 @@ def smoothFuncRangeCompare(histo, fitFunction = "Dijet", fitRange = (900, 3000),
         f.Close()
         
     return smoothFuncCompSyst
-
+    
+#Pass in a histo and it will return a histogram with scaled bins above a min_mass_to_rebin.
+def VariableRebin(histo, bin_multiplier, min_mass_to_rebin):
+    bin_list = [0]
+    cur_bin = 1
+    first_transition = True
+    current_bin_width = histo.GetBinWidth(cur_bin)
+    while cur_bin < histo.GetNbinsX():
+        if histo.GetBinLowEdge(cur_bin) <= 0:
+            cur_bin += 1
+        elif histo.GetBinLowEdge(cur_bin) < min_mass_to_rebin:
+            bin_list.append(histo.GetBinLowEdge(cur_bin))
+            cur_bin += 1
+        else:
+            if first_transition:
+                cur_bin -=1
+                first_transition = False
+            varied_edge = histo.GetBinLowEdge(cur_bin) + histo.GetBinWidth(cur_bin)*bin_multiplier
+            cur_bin = histo.FindBin(varied_edge)
+            if cur_bin > histo.GetNbinsX():
+                break
+            bin_list.append(varied_edge)
+            
+    bin_array = np.array(bin_list)
+    print bin_array            
+    return histo.Rebin(len(bin_list)-1,"variable rebinned histo", bin_array)
 
 
 def MakeSmoothHisto(hist, fitCurve, lowFillVal = 500, keepNorm=False):   # qi
@@ -815,6 +846,10 @@ def MJ8Func(x, par):
     #https://cds.cern.ch/record/2026080
     z = x[0] / 13000.0
     return np.exp( par[0] ) * (1.0 / z**2) * np.power((1.0 - z), par[1] - par[2]*np.log(z))
+    
+def Dijet4ParamFunc(x, par):
+    z = x[0] / 13000.0
+    return np.exp(par[0] + par[1]* np.log((1.0 - z)) + par[2]* np.log(z) ) * np.power(z, par[3]*np.log(z))
 
 def GaussExp(x, par):
     z = x[0] / 3000.

@@ -5,11 +5,12 @@ import sys, time, argparse, os, glob
 #import smoothfit_Ultimate as smoothfit
 import smoothfit
 import BackgroundFit_Ultimate as BkgFit
+import smoothfit_Ultimate
 import SystematicsTools_withSmoothing as SystToolsSmooth
 import ExpModGaussSmoothingSystematics as EMGSmoothSyst
 from HistoTools import HistLocationString as HistLocStr
 from HistoTools import CheckAndGet
-R.gROOT.LoadMacro("/afs/cern.ch/work/b/btong/bbbb/MoriondAnalysis/MakePlot/Xhh4bUtils/BkgFit/AtlasStyle.C") 
+R.gROOT.LoadMacro("/home/dabbott/hh4bTwo/MakePlot/Xhh4bUtils/BkgFit/AtlasStyle.C") 
 R.SetAtlasStyle()
 
 R.gROOT.SetBatch(True)
@@ -41,7 +42,8 @@ def HistoAnalysis(datafileName="/afs/cern.ch/user/b/btong/work/bbbb/MoriondAnaly
                   isSystematicVariation = False,
                   verbose = False,
                   makeOutputFiles = True,
-                  MassRegionName = "SR"
+                  MassRegionName = "SR",
+                  do_variable_rebin = False
                   ):
     ##### Parse Inputs ############################################
     fitzjets    = False
@@ -176,10 +178,15 @@ def HistoAnalysis(datafileName="/afs/cern.ch/user/b/btong/work/bbbb/MoriondAnaly
 
         #clear the negative weight bins for ttbar
         ClearNegBin(top_r)
-
-        data_r.Rebin(n_rebin)
-        top_r.Rebin(n_rebin)
-        zjet_r.Rebin(n_rebin)
+        
+        if do_variable_rebin:
+            data_r = smoothfit_Ultimate.VariableRebin(data_r,5,2000).Clone()
+            top_r = smoothfit_Ultimate.VariableRebin(top_r,5,2000).Clone()
+            zjet_r = smoothfit_Ultimate.VariableRebin(zjet_r,5,2000).Clone()
+        else:
+            data_r.Rebin(n_rebin)
+            top_r.Rebin(n_rebin)
+            zjet_r.Rebin(n_rebin)
 
         histos[r] = {"data": data_r,  "top": top_r,  "zjet":zjet_r}
 
@@ -368,7 +375,26 @@ def HistoAnalysis(datafileName="/afs/cern.ch/user/b/btong/work/bbbb/MoriondAnaly
             output_Dict[r]["qcd"]["smoothFuncup_super"] = qcd_r_func_up_super
             output_Dict[r]["qcd"]["smoothFuncdown_super"] = qcd_r_func_dw_super
             
-            smoothfit.smoothFuncRangeCompare(qcd_r, fitFunction = smoothing_func, fitRange = qcdSmoothRange, fitMaxVals = ["1850","2000","2250","2500"], fitMinVals=[str(qcdSmoothRange[0]),"1300","1400"],
+            stepped_min_vals = []
+            stepped_max_vals = []
+            stepped_fitting = True
+            if stepped_fitting == True:
+                starting_bin = qcd_r_qup.FindBin(qcdSmoothRange[0])
+                stepped_min_vals.append(str(qcdSmoothRange[0]))
+                for step in range(0, 4):
+                    current_starting_bin = starting_bin + step*1
+                    current_starting_mass = qcd_r_qup.GetBinCenter(current_starting_bin)
+                    stepped_min_vals.append(str(current_starting_mass))
+                    
+                stepped_max_vals = ["3000"]
+            else:
+                stepped_max_vals = ["1850","2000","2250","2500"]
+                stepped_min_vals = [str(qcdSmoothRange[0]),"1300","1400"]    
+            print "MAX AND MIN ARE:"
+            print stepped_max_vals
+            print stepped_min_vals
+            
+            smoothfit.smoothFuncRangeCompare(qcd_r, fitFunction = smoothing_func, fitRange = qcdSmoothRange, fitMaxVals = stepped_max_vals, fitMinVals=stepped_min_vals,
                                             makePlots = True, plotExtra = False, verbose = False, outfileName="smoothFuncRangeCompare_"+r+".root")   # Qi
             
             ## ttbar smoothing variations##############################################################################
